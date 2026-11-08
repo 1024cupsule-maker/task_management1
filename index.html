@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TaskFlow - タスク管理</title>
+
+  <!-- PWA / スマホホーム画面用設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="TaskFlow">
+  <meta name="theme-color" content="#4f46e5">
+
+  <!-- Tailwind CSS & Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    /* iOSセーフエリア対応とタッチハイライトの無効化 */
+    body {
+      -webkit-tap-highlight-color: transparent;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-check-double text-xl text-indigo-200"></i>
+        <h1 class="font-bold text-lg tracking-wide">TaskFlow</h1>
+      </div>
+      <span id="taskCount" class="text-xs bg-indigo-700/60 text-indigo-100 px-2.5 py-1 rounded-full">0 件</span>
+    </div>
+  </header>
+
+  <main class="max-w-xl mx-auto w-full px-4 py-5 flex-1 flex flex-col gap-4">
+    <!-- 入力フォーム -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+      <form id="todoForm" class="flex flex-col gap-3">
+        <input 
+          type="text" 
+          id="taskTitle" 
+          placeholder="新しいタスクを入力..." 
+          required 
+          class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+        >
+        <div class="flex gap-2">
+          <input 
+            type="date" 
+            id="taskDueDate" 
+            class="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+          <select 
+            id="taskPriority" 
+            class="px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="low">優先度: 低</option>
+            <option value="medium" selected>優先度: 中</option>
+            <option value="high">優先度: 高</option>
+          </select>
+        </div>
+        <button 
+          type="submit" 
+          class="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] transition-all text-white font-medium py-2.5 rounded-xl text-sm shadow-sm flex items-center justify-center gap-2"
+        >
+          <i class="fa-solid fa-plus text-xs"></i> 追加する
+        </button>
+      </form>
+    </section>
+
+    <!-- フィルタタブ -->
+    <div class="flex gap-1.5 p-1 bg-slate-200/70 rounded-xl text-xs font-medium">
+      <button class="filter-btn flex-1 py-1.5 rounded-lg text-slate-600 transition-all active-filter" data-filter="all">すべて</button>
+      <button class="filter-btn flex-1 py-1.5 rounded-lg text-slate-600 transition-all" data-filter="active">未完了</button>
+      <button class="filter-btn flex-1 py-1.5 rounded-lg text-slate-600 transition-all" data-filter="completed">完了済み</button>
+    </div>
+
+    <!-- タスクリスト -->
+    <ul id="taskList" class="flex flex-col gap-2.5 flex-1"></ul>
+
+    <!-- 完了タスク削除ボタン -->
+    <button 
+      id="clearCompletedBtn" 
+      class="text-xs text-slate-400 hover:text-rose-500 self-center py-2 transition-colors hidden"
+    >
+      完了したタスクを削除
+    </button>
+  </main>
+
+  <script>
+    let tasks = JSON.parse(localStorage.getItem('taskflow_tasks') || '[]');
+    let currentFilter = 'all';
+
+    const form = document.getElementById('todoForm');
+    const titleInput = document.getElementById('taskTitle');
+    const dueDateInput = document.getElementById('taskDueDate');
+    const priorityInput = document.getElementById('taskPriority');
+    const list = document.getElementById('taskList');
+    const countBadge = document.getElementById('taskCount');
+    const clearBtn = document.getElementById('clearCompletedBtn');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+
+    function saveTasks() {
+      localStorage.setItem('taskflow_tasks', JSON.stringify(tasks));
+      render();
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = titleInput.value.trim();
+      if (!title) return;
+
+      tasks.unshift({
+        id: Date.now(),
+        title,
+        dueDate: dueDateInput.value || null,
+        priority: priorityInput.value,
+        completed: false
+      });
+
+      titleInput.value = '';
+      dueDateInput.value = '';
+      priorityInput.value = 'medium';
+      saveTasks();
+    });
+
+    function toggleTask(id) {
+      tasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+      saveTasks();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveTasks();
+    }
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => {
+          b.classList.remove('bg-white', 'text-indigo-600', 'shadow-sm');
+          b.classList.add('text-slate-600');
+        });
+        btn.classList.add('bg-white', 'text-indigo-600', 'shadow-sm');
+        btn.classList.remove('text-slate-600');
+        currentFilter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    clearBtn.addEventListener('click', () => {
+      tasks = tasks.filter(t => !t.completed);
+      saveTasks();
+    });
+
+    function render() {
+      const filtered = tasks.filter(t => {
+        if (currentFilter === 'active') return !t.completed;
+        if (currentFilter === 'completed') return t.completed;
+        return true;
+      });
+
+      const activeCount = tasks.filter(t => !t.completed).length;
+      countBadge.textContent = `${activeCount} 件 未完了`;
+      clearBtn.classList.toggle('hidden', !tasks.some(t => t.completed));
+
+      if (filtered.length === 0) {
+        list.innerHTML = `
+          <div class="text-center py-10 text-slate-400">
+            <i class="fa-regular fa-clipboard text-3xl mb-2 stroke-1"></i>
+            <p class="text-xs">タスクがありません</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = filtered.map(t => {
+        const priorityColors = {
+          high: 'bg-rose-100 text-rose-700',
+          medium: 'bg-amber-100 text-amber-700',
+          low: 'bg-slate-100 text-slate-600'
+        };
+        const priorityLabels = { high: '高', medium: '中', low: '低' };
+
+        return `
+          <li class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-3">
+            <button onclick="toggleTask(${t.id})" class="text-lg ${t.completed ? 'text-indigo-600' : 'text-slate-300 hover:text-slate-400'}">
+              <i class="fa-${t.completed ? 'solid fa-circle-check' : 'regular fa-circle'}"></i>
+            </button>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium leading-snug truncate ${t.completed ? 'line-through text-slate-400' : 'text-slate-700'}">
+                ${t.title}
+              </p>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-[10px] px-1.5 py-0.5 rounded ${priorityColors[t.priority]}">
+                  ${priorityLabels[t.priority]}
+                </span>
+                ${t.dueDate ? `
+                  <span class="text-[11px] text-slate-400 flex items-center gap-1">
+                    <i class="fa-regular fa-calendar text-[10px]"></i> ${t.dueDate}
+                  </span>
+                ` : ''}
+              </div>
+            </div>
+            <button onclick="deleteTask(${t.id})" class="text-slate-300 hover:text-rose-500 p-1">
+              <i class="fa-regular fa-trash-can text-sm"></i>
+            </button>
+          </li>
+        `;
+      }).join('');
+    }
+
+    // 初期化表示
+    document.querySelector('.filter-btn[data-filter="all"]').classList.add('bg-white', 'text-indigo-600', 'shadow-sm');
+    render();
+  </script>
+</body>
+</html>
